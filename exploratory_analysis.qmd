@@ -176,6 +176,57 @@ spatial_join %>%
   knitr::kable(format = "html")
 
 ```
+#### Count of properties and subsidies in Special Flood Hazard Areas by state and subsidy program
+
+```{r}
+#| include: TRUE
+#| echo: false
+spatial_join %>% 
+  filter(state != "") %>%
+  filter(hazard_category == "Special Flood Hazard Area") %>%
+  group_by(state) %>%
+  summarise(
+    sfha_properties = n(), 
+    sfha_subsidies = sum(active_subsidies, na.rm = TRUE),
+    studio_one_bedroom_units = sum(studio_one_bedroom_units, na.rm = TRUE), 
+    two_bedroom_units= sum(two_bedroom_units, na.rm = TRUE), 
+    three_plus_bedroom_units= sum(three_plus_bedroom_units, na.rm = TRUE), 
+    percentof_eli_households= mean(percentof_eli_households, na.rm = TRUE),
+    fair_market_rent_2br = mean(fair_market_rent_2br, na.rm = TRUE)) %>% 
+  arrange(desc(sfha_subsidies)) %>% knitr::kable(format = "html")
+
+
+#subsidy_types <- spatial_join %>% select(starts_with("number_active_")) 
+```
+#### Count of properties and subsidies in Special Flood Hazard Areas by state and subsidy program
+
+```{r}
+#| include: TRUE
+#| echo: false
+spatial_join %>% 
+  filter(state != "") %>%
+  filter(hazard_category == "Special Flood Hazard Area") %>%
+  group_by(state) %>%
+  summarise(
+    sfha_properties = n(), 
+    sfha_subsidies = sum(active_subsidies, na.rm = TRUE),
+    section_8 = sum(number_active_section8, na.rm = TRUE),
+    section_202 = sum(number_active_section202, na.rm = TRUE),
+    section_236 = sum(number_active_section236, na.rm = TRUE),
+    hud_insured = sum(number_active_hud_insured, na.rm = TRUE),
+    lihtc = sum(number_active_lihtc, na.rm = TRUE),
+    section_515 = sum(number_active_section515, na.rm = TRUE),
+    section_539 = sum(number_active_section538, na.rm = TRUE),
+    home = sum(number_active_home, na.rm = TRUE),
+    public_housing = sum(number_active_public_housing, na.rm = TRUE),
+    state_subsidy = sum(number_active_state, na.rm = TRUE),
+    pbv = sum(number_active_pbv, na.rm = TRUE),
+    mr = sum(number_active_mr, na.rm = TRUE),
+    nhtf = sum(number_active_nhtf, na.rm = TRUE)) %>% 
+  arrange(desc(sfha_subsidies))  %>% knitr::kable(format = "html")
+```
+
+
 
 ```{r}
 #| include: false

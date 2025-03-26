@@ -1,0 +1,191 @@
+---
+title: "Flood hazard exposure of federally assisted housing"
+format:
+  html:
+    toc: true
+    code-fold: true
+    code-summary: "Show the code"
+    code-overflow: scroll
+    embed-resources: true
+    fig-width: 8
+    fig-height: 8
+execute:
+  eval: true
+  include: true
+  message: false
+  warning: false
+editor: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+#| include: false
+#| echo: false
+library(here)
+library(readxl)
+library(janitor)
+library(dplyr)
+library(skimr)
+library(sf)
+library(ggplot2)
+library(urbnthemes)
+library(tigris)
+set_urbn_defaults(style = "print")
+projection = projection = "EPSG:4269"
+sf::sf_use_s2(FALSE)
+
+```
+
+```{r}
+#| include: false
+#| echo: false
+nhpd_all_properties<- read_xlsx(here("data", "All Properties.xlsx"))  %>% clean_names()
+#nhpd_all_subsidies<- read_xlsx(here("data", "All Subsidies.xlsx")) %>% clean_names()
+```
+
+```{r}
+#| include: false
+#| echo: false
+#cleaning dataset 
+nhpd_cleaned_properties <- nhpd_all_properties %>% 
+  filter(number_active_section515 == 0 & 
+           number_inactive_section515 == 0 & 
+           number_inconclusive_section515 == 0 &
+           number_active_section538 == 0 & 
+           number_inactive_section538 == 0 & 
+           number_inconclusive_section538 == 0 &
+           number_active_state == 0 &
+           number_inactive_state == 0 & 
+           number_inconclusive_state == 0 &
+           cbsa_type %in% c("Metropolitan", "Metropolitan Statistical Area") & 
+           property_status == "Active")
+
+#write.csv(nhpd_cleaned_properties, "nhpd_cleaned_properties.csv")
+#geocoding based on lat and long
+nhpd_cleaned_properties_sf <- st_as_sf(nhpd_cleaned_properties, coords = c("longitude", "latitude")) 
+
+#setting crsto the National Housing Preservation Database CRS found under "source" in ArcGis
+st_crs(nhpd_cleaned_properties_sf) <- 4326
+
+#transforming the nhpd sf to match the crs of Alabama FL
+
+nhpd_cleaned_properties_sf <- nhpd_cleaned_properties_sf %>% st_transform(projection)
+
+```
+
+```{r}
+#| include: false
+#| echo: false
+# #loading in Alabama Data
+# #st_layers("C:/Users/arosenow/Desktop/NFHL_01_20250313.gdb")
+# alabama_nfhl <- st_read(dsn = "C:/Users/arosenow/Desktop/NFHL_01_20250313.gdb", layer = "S_FLD_HAZ_AR")
+# alabama_nfhl_clean <- alabama_nfhl %>%
+#   select("FLD_ZONE", "SHAPE") #%>% st_transform(projection)
+#   
+#   loading in National Flood Hazard Layer for the entire US
+# st_layers("data/nfhl_03_24_25/NFHL_Key_Layers_202412.gdb")
+# st_layers("C:/Users/arosenow/Documents/ArcGIS/Projects/hhts/hhts/Default.gdb")
+# nfhl_03_24 <- st_read(dsn = "data/nfhl_03_24_25/NFHL_Key_Layers_202412.gdb", layer = "S_FLD_HAZ_AR", METHOD=ONLY_CCW)
+
+# #checking to see if the CRS match
+# st_crs(nhpd_cleaned_properties_sf) == st_crs(alabama_nfhl_clean)
+# 
+# alabama_nhpd <-st_intersection(alabama_nfhl_clean, nhpd_cleaned_properties_sf ) 
+# 
+# alabama_nhpd %>% 
+#   st_drop_geometry() %>% 
+#   clean_names() %>%
+#   mutate(total_count = n()) %>% 
+#   group_by(fld_zone) %>% 
+#   summarize( 
+#     count = n(), 
+#     percentage = count / unique(total_count)) 
+# 
+# high_risk_flood_zones_AL <- alabama_nhpd %>% 
+#   clean_names() %>%
+#   filter(fld_zone == "AE") 
+# low_risk_flood_zones_AL <- alabama_nhpd %>% 
+#   clean_names() %>%
+#   filter(fld_zone == "X")
+# 
+# states_sf <- states(cb = TRUE, class = "sf") %>%
+#   filter(!STUSPS %in% c("PR", "GU", "VI", "MP", "AS"))
+# 
+# 
+# alabama_map <- ggplot() + 
+#   geom_sf(data = alabama_nfhl_clean %>% filter(!FLD_ZONE %in% c("AREA NOT INCLUDED", "X")), fill = "lightblue") + 
+#   geom_sf(data = low_risk_flood_zones_AL, size =2, color = "#d2d2d2") +
+#   geom_sf(data = high_risk_flood_zones_AL, size =2, color = "#db2b27") +
+#   geom_sf(data = states_sf %>% filter(STUSPS == "AL"), fill = "transparent", color = "black") + 
+#   theme_urbn_map() 
+#   
+# alabama_map      
+# ggsave("alabama_map.png", alabama_map)
+
+```
+
+```{r}
+#| include: false
+#| echo: false
+#| 
+#### loading in National Flood Hazard with spatial join performed in ArcGIS 
+spatial_join <- read.csv("data/spatial_join.csv") %>% 
+  clean_names() %>% 
+  select(-c("gfid", "source_cit", "dual_zone", "dep_revert", "bfe_revert", "ar_subtrv", "ar_revert", "vel_unit", "velocity", "v_datum", "depth", "len_unit", "dfirm_id", "version_id", "fld_ar_id")) %>% 
+  mutate(join_count = case_when( 
+   join_count == 2 & fld_zone == "A" ~ 1,
+   join_count == 2 & fld_zone == "AE" ~ 1,
+   TRUE ~ join_count),
+hazard_category = case_when(
+     fld_zone == "X" & zone_subty %in% c("AREA WITH REDUCED FLOOD HAZARD DUE TO ACCREDITED LEVEE SYSTEM", "AREA WITH REDUCED FLOOD RISK DUE TO LEVEE",  "AREA OF MINIMAL FLOOD HAZARD", "")  ~ "Minimal flood risk",
+     fld_zone == "D" ~ "Minimal flood risk", 
+      fld_zone == "X" & zone_subty  %in% c("0.2 PCT ANNUAL CHANCE FLOOD HAZARD", "1 PCT DEPTH LESS THAN 1 FOOT", "0.2 PCT ANNUAL CHANCE FLOOD HAZARD IN COASTAL ZONE", "0.2 PCT ANNUAL CHANCE FLOOD HAZARD IN COMBINED RIVERINE AND COASTAL ZONE", "1 PCT FUTURE CONDITIONS", "0.2 PCT ANNUAL CHANCE FLOOD HAZARD CONTAINED IN CHANNEL") ~ "Moderate flood hazard",
+      fld_zone %in% c("AE", "AO", "AH", "A99", "A", "VE") ~ "Special Flood Hazard Area", 
+     fld_zone %in% c("AREA NOT INCLUDED") ~ "Area not included",
+      TRUE ~ NA_character_  
+    ))
+
+```
+
+#### Count of properties and subsidies in Special Flood Hazard Areas by state
+
+**Special Flood Hazard Areas (SFHA)** are defined as an area that will
+be inundated by a flood event having a 1-percent chance of being equaled
+or exceeded in any given year.
+
+SFHAs are labeled as Zone A, Zone AO, Zone AH, Zones A1-A30, Zone AE,
+Zone A99, Zone AR, Zone AR/AE, Zone AR/AO, Zone AR/A1-A30, Zone AR/A,
+Zone V, Zone VE, and Zones V1-V30
+([source](https://www.fema.gov/about/glossary/flood-zones))
+
+```{r}
+#| include: TRUE
+#| echo: false
+spatial_join %>% 
+  filter(state != "") %>%
+  group_by(state) %>%
+  summarise(
+    properties = n(), 
+    sfha_properties = sum(hazard_category == "Special Flood Hazard Area", na.rm = TRUE), 
+    subsidies =  sum(active_subsidies, na.rm = TRUE), 
+    sfha_subsidies = sum(active_subsidies[hazard_category == "Special Flood Hazard Area"], na.rm = TRUE),  # Count of subsidies in SFHA
+    share_sfha_properties = sfha_properties / properties,
+    share_sfha_subsidies = sfha_subsidies / subsidies
+  ) %>%   arrange(desc(share_sfha_properties))%>%
+  knitr::kable(format = "html")
+
+```
+
+```{r}
+#| include: false
+#| echo: false
+ #### Exploring NHPD dataset
+nhpd_all_properties %>% 
+  group_by(cbsa_type) %>% 
+  count()
+
+nhpd_all_properties %>% 
+  group_by(property_status) %>% 
+  count()
+```
